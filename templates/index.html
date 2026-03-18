@@ -1,0 +1,1458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PedESI Triage Sim — Chat</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css">
+<style>
+  :root {
+    --esi1: #c0392b; --esi2: #e67e22; --esi3: #f1c40f;
+    --esi4: #27ae60; --esi5: #2980b9;
+    --bg: #f4f6f9; --card: #ffffff; --border: #ddd;
+  }
+
+  body {
+    background: var(--bg);
+    font-family: 'Segoe UI', Roboto, sans-serif;
+  }
+
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ── ESI Buttons ── */
+  .esi-btn {
+    width: 80px; height: 80px; border-radius: 12px; font-size: 1.5rem;
+    font-weight: 800; border: 3px solid transparent; cursor: pointer;
+    transition: transform .1s, box-shadow .1s; color: #fff;
+  }
+  .esi-btn:hover { transform: scale(1.08); box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+  .esi-btn.selected { outline: 4px solid #333; transform: scale(1.1); }
+  .esi-btn[data-esi="1"] { background: var(--esi1); }
+  .esi-btn[data-esi="2"] { background: var(--esi2); }
+  .esi-btn[data-esi="3"] { background: var(--esi3); color: #333; }
+  .esi-btn[data-esi="4"] { background: var(--esi4); }
+  .esi-btn[data-esi="5"] { background: var(--esi5); }
+
+  .esi-badge {
+    display: inline-block; padding: 4px 12px; border-radius: 6px;
+    font-weight: 700; color: #fff; font-size: .95rem;
+  }
+  .esi-badge.esi1 { background: var(--esi1); }
+  .esi-badge.esi2 { background: var(--esi2); }
+  .esi-badge.esi3 { background: var(--esi3); color: #333; }
+  .esi-badge.esi4 { background: var(--esi4); }
+  .esi-badge.esi5 { background: var(--esi5); }
+
+  /* ── Chat Interface ── */
+  #chat-window {
+    border: 1px solid var(--border);
+    background: #fff;
+    border-radius: 8px;
+    padding: 16px;
+    height: 400px;
+    overflow-y: auto;
+    margin-bottom: 16px;
+    font-size: 0.95rem;
+  }
+
+  .chat-bubble {
+    margin-bottom: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .chat-bubble.nurse {
+    justify-content: flex-end;
+  }
+
+  .chat-bubble.nurse .bubble-content {
+    background: #d1e7f7;
+    border-radius: 12px;
+    padding: 10px 14px;
+    max-width: 75%;
+    word-wrap: break-word;
+    text-align: left;
+  }
+
+  .chat-bubble.system .bubble-content,
+  .chat-bubble.ai .bubble-content {
+    background: #f0f0f0;
+    border-radius: 12px;
+    padding: 10px 14px;
+    max-width: 75%;
+    word-wrap: break-word;
+    text-align: left;
+  }
+
+  .chat-bubble.ai .bubble-content {
+    background: #e8f4f8;
+  }
+
+  .chat-bubble .sender {
+    font-size: 0.8rem;
+    color: #666;
+    margin-bottom: 4px;
+  }
+
+  .chat-bubble.ai .sender::before {
+    content: "🤖 ";
+  }
+
+  /* ── Vitals Bar ── */
+  .vitals-bar {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px;
+    font-size: 0.9rem;
+  }
+
+  .vital-item {
+    padding: 8px;
+    border-radius: 4px;
+    background: #f9f9f9;
+    text-align: center;
+  }
+
+  .vital-item.danger {
+    background: #ffcccc;
+    color: #c0392b;
+    font-weight: bold;
+  }
+
+  .vital-item.abnormal {
+    background: #ffe6cc;
+    color: #e67e22;
+  }
+
+  .vital-label {
+    display: block;
+    font-size: 0.8rem;
+    color: #666;
+    margin-bottom: 4px;
+  }
+
+  .vital-value {
+    display: block;
+    font-weight: bold;
+    font-size: 1rem;
+  }
+
+  /* ── Quick Actions ── */
+  .quick-actions {
+    overflow-x: auto;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    white-space: nowrap;
+  }
+
+  .quick-btn {
+    display: inline-block;
+    padding: 8px 14px;
+    margin-right: 8px;
+    background: #e8e8e8;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+
+  .quick-btn:hover {
+    background: #d0d0d0;
+    border-color: #999;
+  }
+
+  /* ── Input Area ── */
+  .input-area {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  #message-input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.95rem;
+  }
+
+  #send-btn {
+    padding: 10px 20px;
+    background: #007bff;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+  }
+
+  #send-btn:hover { background: #0056b3; }
+  #send-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+  /* ── Ready to Triage Button ── */
+  .ready-btn-container {
+    margin-bottom: 16px;
+  }
+
+  #ready-triage-btn {
+    width: 100%;
+    padding: 14px;
+    background: #27ae60;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  #ready-triage-btn:hover { background: #229954; }
+  #ready-triage-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+  /* ── ESI Selection Panel ── */
+  .esi-panel {
+    background: #f9f9f9;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .esi-panel h4 {
+    margin-bottom: 16px;
+    font-weight: 700;
+  }
+
+  .esi-grid {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  .esi-panel .slider-container {
+    margin: 16px 0;
+  }
+
+  .esi-panel .slider-container label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+
+  .esi-panel input[type="range"] {
+    width: 100%;
+    height: 6px;
+    cursor: pointer;
+  }
+
+  /* ── Header ── */
+  .case-header {
+    background: #fff;
+    border-bottom: 2px solid var(--border);
+    padding: 16px;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .case-header h3 {
+    margin: 0;
+    font-weight: 700;
+  }
+
+  .arm-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    background: #e8e8e8;
+  }
+
+  .arm-badge.arm-b {
+    background: #d1e7f7;
+    color: #0056b3;
+  }
+
+  .timer-display {
+    font-size: 1.2rem;
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
+  }
+
+  /* ── Progress Bar ── */
+  .progress-bar-container {
+    margin-bottom: 16px;
+    background: #fff;
+    border-radius: 6px;
+    overflow: hidden;
+    height: 24px;
+  }
+
+  .progress-bar-container .progress {
+    height: 100%;
+  }
+
+  .progress-fill {
+    background: linear-gradient(90deg, #3498db, #2ecc71);
+    height: 100%;
+    transition: width 0.3s;
+  }
+
+  /* ── Patient Info ── */
+  .patient-info {
+    background: #f9f9f9;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 16px;
+    font-size: 0.95rem;
+  }
+
+  .patient-row {
+    margin-bottom: 6px;
+  }
+
+  .patient-row strong {
+    margin-right: 8px;
+  }
+
+  /* ── Feedback Message ── */
+  .feedback-message {
+    background: #f0f0f0;
+    border-left: 4px solid #999;
+    border-radius: 4px;
+    padding: 12px;
+    margin: 12px 0;
+  }
+
+  .feedback-message.correct {
+    background: #d4edda;
+    border-left-color: #27ae60;
+    color: #155724;
+  }
+
+  .feedback-message.incorrect {
+    background: #f8d7da;
+    border-left-color: #c0392b;
+    color: #721c24;
+  }
+
+  /* ── Auth Pages ── */
+  .auth-container {
+    max-width: 400px;
+    margin: 50px auto;
+    padding: 20px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.1);
+  }
+
+  .auth-container h1 {
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  .form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+
+  .form-group input,
+  .form-group select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 0.95rem;
+  }
+
+  .btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+
+  .btn-primary {
+    background: #007bff;
+    color: #fff;
+    width: 100%;
+  }
+
+  .btn-primary:hover { background: #0056b3; }
+
+  .btn-secondary {
+    background: #6c757d;
+    color: #fff;
+  }
+
+  .btn-secondary:hover { background: #5a6268; }
+
+  .error { color: #c0392b; margin: 10px 0; }
+  .success { color: #27ae60; margin: 10px 0; }
+
+  /* ── Lobby ── */
+  .lobby-container {
+    max-width: 600px;
+    margin: 50px auto;
+    padding: 20px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.1);
+  }
+
+  .lobby-container h2 {
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .lobby-actions {
+    display: flex;
+    gap: 10px;
+    flex-direction: column;
+  }
+
+  .lobby-actions button {
+    padding: 14px;
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  /* ── Case Page Layout ── */
+  .case-page-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  /* ── Summary/Admin ── */
+  .summary-container {
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 20px;
+    background: #fff;
+    border-radius: 8px;
+  }
+
+  .summary-container h2 {
+    margin-bottom: 20px;
+  }
+
+  .summary-stat {
+    margin-bottom: 16px;
+    padding: 12px;
+    background: #f9f9f9;
+    border-radius: 4px;
+  }
+
+  .summary-stat strong {
+    display: inline-block;
+    min-width: 200px;
+  }
+
+  .admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+  }
+
+  .admin-table thead {
+    background: #f0f0f0;
+  }
+
+  .admin-table th,
+  .admin-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .admin-table th {
+    font-weight: 700;
+  }
+
+  /* ── NCJMM Triage Sections ── */
+  .ncjmm-section {
+    margin-bottom: 24px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #eee;
+  }
+  .ncjmm-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+  .ncjmm-heading {
+    font-weight: 700;
+    color: #2c3e50;
+    margin-bottom: 4px;
+    font-size: 1rem;
+  }
+  .ncjmm-hint {
+    font-size: 0.82rem;
+    color: #777;
+    margin-bottom: 10px;
+  }
+  #hypothesis-select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    background: #fff;
+  }
+  .cue-check-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 0;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  .cue-check-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .vitals-bar {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .esi-grid {
+      gap: 8px;
+    }
+
+    .esi-btn {
+      width: 70px;
+      height: 70px;
+      font-size: 1.2rem;
+    }
+
+    #chat-window {
+      height: 300px;
+    }
+
+    .chat-bubble.nurse .bubble-content,
+    .chat-bubble.system .bubble-content {
+      max-width: 90%;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Auth: Login ── -->
+<div id="page-login" class="page active">
+  <div class="auth-container">
+    <h1>PedESI Triage</h1>
+    <div id="login-error" class="error" style="display:none;"></div>
+    <div class="form-group">
+      <label>Username</label>
+      <input id="login-user" type="text" placeholder="Enter username">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input id="login-pass" type="password" placeholder="Enter password">
+    </div>
+    <button class="btn btn-primary" onclick="handleLogin()">Login</button>
+    <div style="text-align:center; margin-top:16px;">
+      <a href="#" onclick="showPage('page-register'); return false;">Create new account</a>
+    </div>
+    <div style="text-align:center; margin-top:16px;">
+      <a href="#" onclick="showAdminLogin(); return false;">Admin login</a>
+    </div>
+  </div>
+</div>
+
+<!-- ── Auth: Register ── -->
+<div id="page-register" class="page">
+  <div class="auth-container">
+    <h1>Create Account</h1>
+    <div id="register-error" class="error" style="display:none;"></div>
+    <div class="form-group">
+      <label>Username</label>
+      <input id="reg-user" type="text" placeholder="Choose username">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input id="reg-pass" type="password" placeholder="At least 6 characters">
+    </div>
+    <div class="form-group">
+      <label>Years of Experience</label>
+      <input id="reg-years" type="number" placeholder="e.g., 5">
+    </div>
+    <div class="form-group">
+      <label>Role</label>
+      <select id="reg-role">
+        <option value="">Select role</option>
+        <option>RN</option>
+        <option>NP</option>
+        <option>Charge Nurse</option>
+        <option>Student</option>
+        <option>Resident</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Work Setting</label>
+      <select id="reg-setting">
+        <option value="">Select setting</option>
+        <option>ED</option>
+        <option>PICU</option>
+        <option>General Peds</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="handleRegister()">Create Account</button>
+    <div style="text-align:center; margin-top:16px;">
+      <a href="#" onclick="showPage('page-login'); return false;">Back to login</a>
+    </div>
+  </div>
+</div>
+
+<!-- ── Auth: Admin Login ── -->
+<div id="page-admin-login" class="page">
+  <div class="auth-container">
+    <h1>Admin Login</h1>
+    <div id="admin-login-error" class="error" style="display:none;"></div>
+    <div class="form-group">
+      <label>Password</label>
+      <input id="admin-pass" type="password" placeholder="Admin password">
+    </div>
+    <button class="btn btn-primary" onclick="handleAdminLogin()">Login</button>
+    <div style="text-align:center; margin-top:16px;">
+      <a href="#" onclick="showPage('page-login'); return false;">Back to login</a>
+    </div>
+  </div>
+</div>
+
+<!-- ── Lobby ── -->
+<div id="page-lobby" class="page">
+  <div class="lobby-container">
+    <h2>Welcome, <span id="lobby-username"></span></h2>
+    <p>You are about to begin the pediatric ESI triage simulation. This study consists of 20 cases. You will triage each case by asking questions in a chat interface. Try to gather the clinical information you need, then submit your ESI level.</p>
+    <div class="lobby-actions">
+      <button class="btn btn-primary" onclick="startSession()">Start Simulation</button>
+      <button class="btn btn-secondary" onclick="handleLogout()">Logout</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Case Page (Chat Interface) ── -->
+<div id="page-case" class="page">
+  <div class="case-page-container">
+    <!-- Header -->
+    <div class="case-header">
+      <div>
+        <h3>Case <span id="case-order">1</span> of <span id="case-total">20</span></h3>
+        <small id="case-title" style="color:#666;"></small>
+      </div>
+      <div style="text-align:right;">
+        <span class="arm-badge" id="arm-badge"></span><br>
+        <div class="timer-display">
+          <span id="timer-display">00:00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-bar-container">
+      <div class="progress">
+        <div class="progress-fill" id="progress-bar" style="width: 5%;"></div>
+      </div>
+    </div>
+
+    <!-- Patient Info -->
+    <div class="patient-info">
+      <div class="patient-row">
+        <strong>Patient:</strong>
+        <span id="patient-display"></span>
+      </div>
+      <div class="patient-row">
+        <strong>Chief Complaint:</strong>
+        <span id="cc-display"></span>
+      </div>
+    </div>
+
+    <!-- Vitals Bar -->
+    <div class="vitals-bar" id="vitals-display"></div>
+
+    <!-- Chat Window -->
+    <div id="chat-window"></div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions" id="quick-actions"></div>
+
+    <!-- Input Area (Chat) -->
+    <div id="input-area" class="input-area">
+      <input id="message-input" type="text" placeholder="Ask a question..." autocomplete="off">
+      <button id="send-btn" onclick="sendMessage()">Send</button>
+    </div>
+
+    <!-- Ready to Triage Button -->
+    <div class="ready-btn-container">
+      <button id="ready-triage-btn" onclick="showTriagePanel()">Ready to Triage</button>
+    </div>
+
+    <!-- ESI Selection Panel (initially hidden) -->
+    <div id="esi-selection-panel" class="esi-panel" style="display:none;">
+
+      <!-- NCJMM Step 1: Prioritize Hypotheses -->
+      <div class="ncjmm-section">
+        <h5 class="ncjmm-heading">Step 1 — Working Clinical Concern</h5>
+        <p class="ncjmm-hint">What is your primary hypothesis about this patient's condition?</p>
+        <select id="hypothesis-select">
+          <option value="">— Select a concern —</option>
+          <option>Respiratory distress / failure</option>
+          <option>Sepsis / serious bacterial infection</option>
+          <option>Anaphylaxis / allergic reaction</option>
+          <option>Neurological emergency (seizure, altered mental status)</option>
+          <option>Cardiac emergency / arrhythmia</option>
+          <option>Abdominal emergency</option>
+          <option>Trauma / injury</option>
+          <option>Toxicological / ingestion</option>
+          <option>Febrile illness / viral syndrome</option>
+          <option>Dehydration / GI illness</option>
+          <option>Pain complaint / musculoskeletal</option>
+          <option>Behavioral / psychiatric</option>
+          <option>Other / low-acuity</option>
+        </select>
+      </div>
+
+      <!-- NCJMM Step 2: Analyze Cues -->
+      <div class="ncjmm-section">
+        <h5 class="ncjmm-heading">Step 2 — Key Influencing Findings</h5>
+        <p class="ncjmm-hint">Which findings most influenced your assessment? Select all that apply.</p>
+        <div id="cue-salience-options"></div>
+      </div>
+
+      <!-- Step 3: ESI level + confidence -->
+      <div class="ncjmm-section">
+        <h5 class="ncjmm-heading">Step 3 — ESI Triage Level</h5>
+        <div class="esi-grid" id="esi-grid"></div>
+        <div class="slider-container">
+          <label for="confidence-slider">Confidence Level:</label>
+          <input id="confidence-slider" type="range" min="1" max="5" value="3">
+          <div style="text-align:center; margin-top:8px;">
+            <span id="conf-display">3 / 5</span>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="btn-submit-initial" onclick="submitInitial()">Submit Triage</button>
+      </div>
+
+    </div>
+
+    <!-- Revision Panel (Arm A only, initially hidden) -->
+    <div id="revision-panel" class="esi-panel" style="display:none;">
+      <h4>AI Recommendation vs. Your Initial Choice</h4>
+      <p style="margin-bottom:16px;">
+        Your initial choice: <span id="initial-esi-display" class="esi-badge"></span> &nbsp;&nbsp;
+        AI recommends: <span id="ai-esi-display" class="esi-badge"></span>
+      </p>
+      <h5 style="margin-top:20px;">Confirm or revise your decision:</h5>
+      <div class="esi-grid" id="revision-esi-grid"></div>
+      <div class="slider-container">
+        <label for="revision-confidence-slider">Confidence Level:</label>
+        <input id="revision-confidence-slider" type="range" min="1" max="5" value="3">
+        <div style="text-align:center; margin-top:8px;">
+          <span id="rev-conf-display">3 / 5</span>
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:16px;">
+        <button class="btn btn-secondary" style="flex:1;" onclick="submitRevision()">Submit Revision</button>
+        <button class="btn btn-primary" style="flex:1;" id="btn-confirm-original" onclick="confirmOriginal()">Confirm Original</button>
+      </div>
+    </div>
+
+    <!-- Next Case Button (shown after feedback) -->
+    <button id="btn-next-case" class="btn btn-primary" style="display:none; width:100%; margin-top:16px;" onclick="loadNextCase()">Next Case</button>
+  </div>
+</div>
+
+<!-- ── Summary ── -->
+<div id="page-summary" class="page">
+  <div class="summary-container">
+    <h2>Session Summary</h2>
+    <div id="summary-content"></div>
+    <button class="btn btn-secondary" style="margin-top:20px;" onclick="handleLogout()">Logout</button>
+  </div>
+</div>
+
+<!-- ── Admin ── -->
+<div id="page-admin" class="page">
+  <div style="max-width:1000px; margin:20px auto; padding:20px;">
+    <h2>Admin Dashboard</h2>
+    <div style="margin-bottom:30px;">
+      <h4>Statistics</h4>
+      <div id="admin-stats"></div>
+    </div>
+    <div style="margin-bottom:30px;">
+      <h4>Nurses</h4>
+      <table class="admin-table" id="nurses-table"></table>
+    </div>
+    <div style="display:flex; gap:10px;">
+      <button class="btn btn-secondary" onclick="exportResponses()">Export Responses</button>
+      <button class="btn btn-secondary" onclick="exportChat()">Export Chat Log</button>
+      <button class="btn btn-secondary" onclick="exportSummary()">Export Summary</button>
+      <button class="btn btn-secondary" onclick="handleLogout()">Logout</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ESI_LABELS = {
+  1: 'ESI 1 — Immediate',
+  2: 'ESI 2 — Urgent',
+  3: 'ESI 3 — Semi-Urgent',
+  4: 'ESI 4 — Less Urgent',
+  5: 'ESI 5 — Non-Urgent'
+};
+
+const INTENT_LABELS = {
+  vitals:        'Vital signs',
+  appearance:    'General appearance',
+  respiratory:   'Respiratory findings',
+  neuro:         'Neurological status',
+  skin:          'Skin findings',
+  cardiac:       'Cardiac findings',
+  abdominal:     'Abdominal findings',
+  hpi:           'History of present illness',
+  onset:         'Onset / timing',
+  pmh:           'Past medical history',
+  medications:   'Medications',
+  allergies:     'Allergies',
+  pain:          'Pain assessment',
+  interventions: 'Prior interventions',
+};
+
+const QUICK_ACTIONS = [
+  { label: 'Vitals', question: 'What are the vital signs?' },
+  { label: 'Appearance', question: 'How does the patient appear?' },
+  { label: 'Respiratory', question: 'What are the respiratory findings?' },
+  { label: 'Neuro', question: 'What is the neurological status?' },
+  { label: 'Skin', question: 'What are the skin findings?' },
+  { label: 'Cardiac', question: 'What are the cardiac findings?' },
+  { label: 'Abdomen', question: 'What are the abdominal findings?' },
+  { label: 'History', question: 'Tell me the history of present illness.' },
+  { label: 'Onset', question: 'When did this start?' },
+  { label: 'PMH', question: 'What is the past medical history?' },
+  { label: 'Medications', question: 'What medications is the patient on?' },
+  { label: 'Allergies', question: 'Does the patient have any allergies?' },
+  { label: 'Pain', question: 'How is the patient\'s pain?' },
+  { label: 'Interventions', question: 'What has been done so far?' },
+];
+
+const S = {
+  nurseId: null,
+  username: null,
+  isAdmin: false,
+  sessionId: null,
+  currentCase: null,
+  selectedESI: null,
+  selectedRevisionESI: null,
+  timerStart: null,
+  timerInterval: null,
+  aiRevealTime: null,
+  phase: 'chat',
+  messageCount: 0,
+  askedIntents: new Set()
+};
+
+// ─── Utilities ───────────────────────────────────────────────────────────
+
+async function api(method, path, data) {
+  const options = { method, headers: { 'Content-Type': 'application/json' } };
+  if (data) options.body = JSON.stringify(data);
+  try {
+    const res = await fetch(path, options);
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`API ${method} ${path} → HTTP ${res.status}:`, text.slice(0, 300));
+      return { error: `Server error ${res.status}. Check console for details.` };
+    }
+    return res.json();
+  } catch (err) {
+    console.error(`API ${method} ${path} failed:`, err);
+    return { error: `Network error: ${err.message}` };
+  }
+}
+
+function showPage(pageId) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────
+
+async function handleLogin() {
+  const user = document.getElementById('login-user').value.trim();
+  const pass = document.getElementById('login-pass').value.trim();
+  if (!user || !pass) { alert('Enter username and password'); return; }
+
+  const data = await api('POST', '/api/login', { username: user, password: pass });
+  if (data.error) {
+    document.getElementById('login-error').textContent = data.error;
+    document.getElementById('login-error').style.display = 'block';
+  } else {
+    S.nurseId = data.nurse_id;
+    S.username = data.username;
+    S.isAdmin = data.is_admin || false;
+    if (S.isAdmin) {
+      loadAdminDashboard();
+    } else {
+      showLobby();
+    }
+  }
+}
+
+async function handleRegister() {
+  const user = document.getElementById('reg-user').value.trim();
+  const pass = document.getElementById('reg-pass').value.trim();
+  const years = parseInt(document.getElementById('reg-years').value) || null;
+  const role = document.getElementById('reg-role').value.trim();
+  const setting = document.getElementById('reg-setting').value.trim();
+
+  if (!user || !pass) { alert('Enter username and password'); return; }
+  if (pass.length < 6) { alert('Password must be at least 6 characters'); return; }
+
+  const data = await api('POST', '/api/register', {
+    username: user, password: pass, years_experience: years, role, work_setting: setting
+  });
+  if (data.error) {
+    document.getElementById('register-error').textContent = data.error;
+    document.getElementById('register-error').style.display = 'block';
+  } else {
+    S.nurseId = data.nurse_id;
+    S.username = data.username;
+    showLobby();
+  }
+}
+
+function showAdminLogin() {
+  showPage('page-admin-login');
+}
+
+async function handleAdminLogin() {
+  const pass = document.getElementById('admin-pass').value.trim();
+  if (!pass) { alert('Enter password'); return; }
+
+  const data = await api('POST', '/api/admin/login', { password: pass });
+  if (data.error) {
+    document.getElementById('admin-login-error').textContent = data.error;
+    document.getElementById('admin-login-error').style.display = 'block';
+  } else {
+    S.isAdmin = true;
+    loadAdminDashboard();
+  }
+}
+
+async function handleLogout() {
+  await api('POST', '/api/logout', {});
+  S.nurseId = null;
+  S.username = null;
+  S.isAdmin = false;
+  S.sessionId = null;
+  showPage('page-login');
+}
+
+function showLobby() {
+  document.getElementById('lobby-username').textContent = S.username;
+  showPage('page-lobby');
+}
+
+// ─── Session & Cases ──────────────────────────────────────────────────
+
+async function startSession() {
+  const data = await api('POST', '/api/session/start', {});
+  S.sessionId = data.session_id;
+  loadNextCase();
+}
+
+async function loadNextCase() {
+  const data = await api('GET', `/api/session/${S.sessionId}/next_case`, null);
+  if (data.done) {
+    showSummary();
+    return;
+  }
+
+  S.currentCase = data;
+  S.selectedESI = null;
+  S.selectedRevisionESI = null;
+  S.phase = 'chat';
+  S.messageCount = 0;
+  S.askedIntents = new Set();
+
+  initChat(data);
+}
+
+// ─── Chat ─────────────────────────────────────────────────────────────
+
+function initChat(caseData) {
+  // Clear chat window and render case
+  const chatWin = document.getElementById('chat-window');
+  chatWin.innerHTML = '';
+  S.messageCount = 0;
+
+  // Display case info
+  document.getElementById('case-order').textContent = caseData.case_order;
+  document.getElementById('case-total').textContent = caseData.total_cases;
+  document.getElementById('case-title').textContent = caseData.title;
+  const pInfo = `${caseData.patient.age_display} • ${caseData.patient.sex} • ${caseData.patient.weight_kg}kg`;
+  document.getElementById('patient-display').textContent = pInfo;
+  document.getElementById('cc-display').textContent = caseData.chief_complaint;
+
+  // Update arm badge
+  const armBadge = document.getElementById('arm-badge');
+  armBadge.textContent = `Arm ${caseData.arm}`;
+  armBadge.classList.toggle('arm-b', caseData.arm === 'B');
+
+  // Render vitals
+  renderVitals(caseData.vitals);
+
+  // Render quick actions
+  renderQuickActions();
+
+  // Start timer
+  startTimer();
+
+  // Opening system message
+  appendMessage('system', `New patient. ${caseData.chief_complaint}. Ask questions to gather clinical information.`, null);
+
+  // If Arm B, show AI recommendation immediately in chat
+  if (caseData.arm === 'B') {
+    setTimeout(() => {
+      appendMessage('ai', `AI recommends ESI ${caseData.ai_esi}.`, null);
+    }, 500);
+  }
+
+  showPage('page-case');
+
+  // Show input area and ready button
+  document.getElementById('input-area').style.display = 'flex';
+  document.getElementById('ready-triage-btn').style.display = 'block';
+  document.getElementById('esi-selection-panel').style.display = 'none';
+  document.getElementById('revision-panel').style.display = 'none';
+  document.getElementById('btn-next-case').style.display = 'none';
+
+  // Focus input
+  document.getElementById('message-input').focus();
+}
+
+function renderVitals(vitals) {
+  const vDisplay = document.getElementById('vitals-display');
+  vDisplay.innerHTML = '';
+
+  const vitalsList = [
+    { label: 'HR', value: vitals.hr, unit: 'bpm' },
+    { label: 'RR', value: vitals.rr, unit: '/min' },
+    { label: 'SpO2', value: vitals.spo2, unit: '%' },
+    { label: 'Temp', value: vitals.temp_c, unit: '°C' },
+    { label: 'BP', value: vitals.bp, unit: '' },
+    { label: 'Cap Refill', value: vitals.cap_refill_sec, unit: 's' },
+    { label: 'GCS', value: vitals.gcs, unit: '' },
+  ];
+
+  vitalsList.forEach(v => {
+    if (v.value !== null && v.value !== undefined) {
+      const item = document.createElement('div');
+      item.className = 'vital-item';
+      // Simple abnormality detection (would be more sophisticated in production)
+      if ((v.label === 'HR' && v.value < 60) || (v.label === 'RR' && v.value < 10)) {
+        item.classList.add('danger');
+      }
+      item.innerHTML = `<span class="vital-label">${v.label}</span><span class="vital-value">${v.value}${v.unit}</span>`;
+      vDisplay.appendChild(item);
+    }
+  });
+}
+
+function renderQuickActions() {
+  const container = document.getElementById('quick-actions');
+  container.innerHTML = '';
+  QUICK_ACTIONS.forEach(action => {
+    const btn = document.createElement('button');
+    btn.className = 'quick-btn';
+    btn.textContent = action.label;
+    btn.onclick = () => handleQuickAction(action.question);
+    container.appendChild(btn);
+  });
+}
+
+function handleQuickAction(question) {
+  document.getElementById('message-input').value = question;
+  sendMessage();
+}
+
+async function sendMessage() {
+  const input = document.getElementById('message-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+
+  input.value = '';
+  const sendBtn = document.getElementById('send-btn');
+  sendBtn.disabled = true;
+
+  const elapsedMs = S.timerStart ? Date.now() - S.timerStart : 0;
+
+  // Append nurse message immediately (optimistic)
+  appendMessage('nurse', msg, null);
+
+  try {
+    // Send to backend
+    const data = await api('POST', `/api/session/${S.sessionId}/chat`, {
+      case_id: S.currentCase.case_id,
+      message: msg,
+      elapsed_ms: elapsedMs,
+      case_order: S.currentCase.case_order,
+      arm: S.currentCase.arm
+    });
+
+    if (data.error) {
+      appendMessage('system', `⚠ ${data.error}`, null);
+    } else {
+      appendMessage('system', data.response, data.intent);
+      if (data.intent && data.intent !== 'unknown') {
+        S.askedIntents.add(data.intent);
+      }
+    }
+  } catch (err) {
+    appendMessage('system', `⚠ Unexpected error: ${err.message}`, null);
+    console.error('sendMessage error:', err);
+  } finally {
+    sendBtn.disabled = false;
+    input.focus();
+  }
+}
+
+function appendMessage(sender, text, intent) {
+  const chatWin = document.getElementById('chat-window');
+  S.messageCount++;
+
+  const bubble = document.createElement('div');
+  bubble.className = `chat-bubble ${sender}`;
+
+  const senderLabel = sender === 'nurse' ? 'You' : sender === 'ai' ? 'AI' : 'System';
+  const html = `
+    <div style="display:flex; flex-direction:column; width:100%;">
+      ${sender !== 'nurse' ? `<div class="sender">${senderLabel}</div>` : ''}
+      <div class="bubble-content">${escapeHtml(text)}</div>
+    </div>
+  `;
+  bubble.innerHTML = html;
+  chatWin.appendChild(bubble);
+  chatWin.scrollTop = chatWin.scrollHeight;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function startTimer() {
+  S.timerStart = Date.now();
+  if (S.timerInterval) clearInterval(S.timerInterval);
+  S.timerInterval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - S.timerStart) / 1000);
+    const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+    const ss = String(elapsed % 60).padStart(2, '0');
+    document.getElementById('timer-display').textContent = `${mm}:${ss}`;
+  }, 1000);
+}
+
+function stopTimer() {
+  if (S.timerInterval) { clearInterval(S.timerInterval); S.timerInterval = null; }
+}
+
+// ─── Triage ───────────────────────────────────────────────────────────
+
+function showTriagePanel() {
+  document.getElementById('input-area').style.display = 'none';
+  document.getElementById('ready-triage-btn').style.display = 'none';
+
+  // Populate cue salience options from the intents this nurse actually asked about.
+  // Vitals are always included because they're always displayed.
+  const available = new Set(['vitals', ...S.askedIntents]);
+  let cueHtml = '';
+  for (const intent of available) {
+    const label = INTENT_LABELS[intent] || intent;
+    cueHtml += `<label class="cue-check-label">
+      <input type="checkbox" class="cue-check" value="${intent}">
+      ${label}
+    </label>`;
+  }
+  document.getElementById('cue-salience-options').innerHTML = cueHtml ||
+    '<em style="color:#999;font-size:0.85rem;">No questions asked yet — ask about at least one finding first.</em>';
+
+  // Render ESI buttons
+  const grid = document.getElementById('esi-grid');
+  grid.innerHTML = '';
+  for (let i = 1; i <= 5; i++) {
+    const btn = document.createElement('button');
+    btn.className = 'esi-btn';
+    btn.dataset.esi = i;
+    btn.textContent = i;
+    btn.onclick = () => selectESI(i);
+    grid.appendChild(btn);
+  }
+
+  document.getElementById('esi-selection-panel').style.display = 'block';
+  S.phase = 'triage';
+}
+
+function selectESI(n) {
+  S.selectedESI = n;
+  document.querySelectorAll('#esi-grid .esi-btn').forEach(b => {
+    b.classList.toggle('selected', parseInt(b.dataset.esi) === n);
+  });
+  document.getElementById('btn-submit-initial').disabled = false;
+}
+
+async function submitInitial() {
+  // Validate Step 1
+  const hypothesis = document.getElementById('hypothesis-select').value;
+  if (!hypothesis) {
+    alert('Please complete Step 1 — select a working clinical concern.');
+    return;
+  }
+
+  // Validate Step 2
+  const cueChecks = document.querySelectorAll('.cue-check:checked');
+  const cueSalience = Array.from(cueChecks).map(c => c.value);
+  if (cueSalience.length === 0) {
+    alert('Please complete Step 2 — select at least one key influencing finding.');
+    return;
+  }
+
+  // Validate Step 3
+  if (!S.selectedESI) {
+    alert('Please complete Step 3 — select an ESI level.');
+    return;
+  }
+
+  stopTimer();
+  const responseMs = Date.now() - S.timerStart;
+
+  const data = await api('POST', `/api/session/${S.sessionId}/submit_initial`, {
+    case_id: S.currentCase.case_id,
+    arm: S.currentCase.arm,
+    initial_esi: S.selectedESI,
+    initial_confidence: parseInt(document.getElementById('confidence-slider').value),
+    response_time_ms: responseMs,
+    case_order: S.currentCase.case_order,
+    working_hypothesis: hypothesis,
+    cue_salience: cueSalience
+  });
+
+  if (data.error) { alert(data.error); return; }
+
+  document.getElementById('esi-selection-panel').style.display = 'none';
+
+  if (data.phase === 'revision') {
+    // Arm A: show revision panel
+    S.aiRevealTime = Date.now();
+    S.phase = 'revision';
+
+    // Append AI message to chat
+    appendMessage('ai', `AI recommends ESI ${data.ai_esi}. You chose ESI ${data.initial_esi}. Would you like to revise?`, null);
+
+    // Show revision panel
+    document.getElementById('initial-esi-display').textContent = data.initial_esi;
+    document.getElementById('initial-esi-display').className = `esi-badge esi${data.initial_esi}`;
+    document.getElementById('ai-esi-display').textContent = data.ai_esi;
+    document.getElementById('ai-esi-display').className = `esi-badge esi${data.ai_esi}`;
+
+    const revGrid = document.getElementById('revision-esi-grid');
+    revGrid.innerHTML = '';
+    for (let i = 1; i <= 5; i++) {
+      const btn = document.createElement('button');
+      btn.className = 'esi-btn';
+      btn.dataset.esi = i;
+      btn.textContent = i;
+      btn.onclick = () => selectRevisionESI(i);
+      revGrid.appendChild(btn);
+    }
+    selectRevisionESI(data.initial_esi);
+
+    document.getElementById('revision-panel').style.display = 'block';
+  } else {
+    // Arm B: go straight to feedback
+    renderFeedback(data);
+  }
+}
+
+function selectRevisionESI(n) {
+  S.selectedRevisionESI = n;
+  document.querySelectorAll('#revision-esi-grid .esi-btn').forEach(b => {
+    b.classList.toggle('selected', parseInt(b.dataset.esi) === n);
+  });
+}
+
+function confirmOriginal() {
+  S.selectedRevisionESI = S.selectedESI;
+  submitRevision();
+}
+
+async function submitRevision() {
+  if (!S.selectedRevisionESI) return;
+  const revisionMs = Date.now() - S.aiRevealTime;
+
+  const data = await api('POST', `/api/session/${S.sessionId}/submit_revision`, {
+    case_id: S.currentCase.case_id,
+    final_esi: S.selectedRevisionESI,
+    final_confidence: parseInt(document.getElementById('revision-confidence-slider').value),
+    revision_time_ms: revisionMs
+  });
+
+  if (data.error) { alert(data.error); return; }
+  document.getElementById('revision-panel').style.display = 'none';
+  renderFeedback(data);
+}
+
+function renderFeedback(data) {
+  S.phase = 'feedback';
+  const isCorrect = data.final_correct !== undefined ? data.final_correct : data.initial_correct;
+  const displayESI = data.final_esi !== undefined ? data.final_esi : data.initial_esi;
+
+  let feedbackMsg = isCorrect
+    ? `✓ Correct! You triaged as ESI ${displayESI} — matching the expert consensus.`
+    : `✗ Incorrect. You triaged as ESI ${displayESI}. Expert consensus: ESI ${data.correct_esi}.`;
+
+  appendMessage('system', feedbackMsg, null);
+  appendMessage('system', data.teaching_point, null);
+
+  document.getElementById('btn-next-case').style.display = 'block';
+}
+
+// ─── Summary ──────────────────────────────────────────────────────────
+
+async function showSummary() {
+  const data = await api('GET', `/api/session/${S.sessionId}/summary`, null);
+  let html = '<table class="admin-table"><tbody>';
+
+  html += `<tr><td><strong>Total Cases</strong></td><td>${data.total_cases}</td></tr>`;
+
+  if (data.arm_a.n > 0) {
+    html += `<tr><td colspan="2"><strong>Arm A (Baseline First)</strong></td></tr>`;
+    html += `<tr><td>&nbsp; Cases</td><td>${data.arm_a.n}</td></tr>`;
+    html += `<tr><td>&nbsp; Baseline Accuracy</td><td>${data.arm_a.baseline_accuracy_pct !== null ? data.arm_a.baseline_accuracy_pct + '%' : 'N/A'}</td></tr>`;
+    html += `<tr><td>&nbsp; Post-AI Accuracy</td><td>${data.arm_a.post_ai_accuracy_pct !== null ? data.arm_a.post_ai_accuracy_pct + '%' : 'N/A'}</td></tr>`;
+    html += `<tr><td>&nbsp; Revised</td><td>${data.arm_a.n_revised}</td></tr>`;
+    html += `<tr><td>&nbsp; Improved by AI</td><td>${data.arm_a.n_improved_by_ai}</td></tr>`;
+    html += `<tr><td>&nbsp; Worsened by AI</td><td>${data.arm_a.n_worsened_by_ai}</td></tr>`;
+  }
+
+  if (data.arm_b.n > 0) {
+    html += `<tr><td colspan="2"><strong>Arm B (AI First)</strong></td></tr>`;
+    html += `<tr><td>&nbsp; Cases</td><td>${data.arm_b.n}</td></tr>`;
+    html += `<tr><td>&nbsp; Accuracy</td><td>${data.arm_b.accuracy_pct !== null ? data.arm_b.accuracy_pct + '%' : 'N/A'}</td></tr>`;
+  }
+
+  html += '</tbody></table>';
+  document.getElementById('summary-content').innerHTML = html;
+  showPage('page-summary');
+}
+
+// ─── Admin ────────────────────────────────────────────────────────────
+
+async function loadAdminDashboard() {
+  const stats = await api('GET', '/api/admin/stats', null);
+  const nurses = await api('GET', '/api/admin/nurses', null);
+
+  let statsHtml = '';
+  statsHtml += `<div class="summary-stat"><strong>Nurses:</strong> ${stats.n_nurses}</div>`;
+  statsHtml += `<div class="summary-stat"><strong>Sessions:</strong> ${stats.n_sessions}</div>`;
+  statsHtml += `<div class="summary-stat"><strong>Completed:</strong> ${stats.n_completed_sessions}</div>`;
+  statsHtml += `<div class="summary-stat"><strong>Total Responses:</strong> ${stats.n_responses}</div>`;
+  document.getElementById('admin-stats').innerHTML = statsHtml;
+
+  let tableHtml = '<thead><tr><th>Username</th><th>Role</th><th>Experience</th><th>Setting</th><th>Created</th></tr></thead><tbody>';
+  nurses.forEach(n => {
+    tableHtml += `<tr>
+      <td>${escapeHtml(n.username)}</td>
+      <td>${escapeHtml(n.role || '—')}</td>
+      <td>${n.years_experience || '—'}</td>
+      <td>${escapeHtml(n.work_setting || '—')}</td>
+      <td>${new Date(n.created_at).toLocaleDateString()}</td>
+    </tr>`;
+  });
+  tableHtml += '</tbody>';
+  document.getElementById('nurses-table').innerHTML = tableHtml;
+
+  showPage('page-admin');
+}
+
+function exportResponses() {
+  window.location.href = '/api/admin/export/responses';
+}
+
+function exportChat() {
+  window.location.href = '/api/admin/export/chat';
+}
+
+function exportSummary() {
+  window.location.href = '/api/admin/export/summary';
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Check if already logged in
+  api('GET', '/api/me', null).then(data => {
+    if (data.authenticated) {
+      S.nurseId = data.nurse_id;
+      S.username = data.username;
+      S.isAdmin = data.is_admin || false;
+      if (S.isAdmin) {
+        loadAdminDashboard();
+      } else {
+        showLobby();
+      }
+    }
+  });
+
+  // Setup message input enter key
+  document.getElementById('message-input')?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') { sendMessage(); }
+  });
+
+  // Confidence sliders
+  document.getElementById('confidence-slider')?.addEventListener('input', (e) => {
+    document.getElementById('conf-display').textContent = e.target.value + ' / 5';
+  });
+
+  document.getElementById('revision-confidence-slider')?.addEventListener('input', (e) => {
+    document.getElementById('rev-conf-display').textContent = e.target.value + ' / 5';
+  });
+});
+</script>
+
+</body>
+</html>
