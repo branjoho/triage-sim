@@ -820,8 +820,8 @@
     "id": 16,
     "title": "Cellulitis \u2014 Leg, Afebrile",
     "esi": 4,
-    "ai_esi": 4,
-    "ai_correct": true,
+    "ai_esi": 3,
+    "ai_correct": false,
     "difficulty": "low",
     "category": "infectious",
     "patient": {
@@ -844,8 +844,8 @@
     "exam": "Alert, well-appearing, comfortable. 6x8cm area of erythema, warmth, and induration on anterior right lower leg. Non-fluctuant. No streaking (lymphangitis). Small dried abrasion at center of erythema. No lymphadenopathy. Wound margins well-defined. Afebrile in ED.",
     "pmh": "No prior skin infections. No diabetes or immunodeficiency. No prior MRSA. No recent antibiotics.",
     "correct_esi_rationale": "ESI 4: Afebrile, non-fluctuant, non-complicated cellulitis with clear trigger (abrasion) and well-demarcated borders. One resource: wound culture if clinical judgment dictates, plus prescription for antibiotics (cephalexin or trimethoprim-sulfamethoxazole for MRSA coverage if indicated). No IV needed, no imaging needed.",
-    "ai_rationale": "AI correctly identifies afebrile, non-complicated cellulitis as ESI 4 \u2014 one resource (prescription/wound evaluation) needed.",
-    "teaching_point": "Cellulitis ESI classification: Afebrile, non-fluctuant, hemodynamically stable = ESI 4 (one resource: prescription). Febrile + extensive + concern for deep space infection = ESI 3. Abscess needs I&D = ESI 3 or 4 depending on other resources. Mark the borders at triage to document progression as a standard practice.",
+    "ai_rationale": "AI flags the 2cm border progression in 8 hours as a high-risk feature and recommends ESI 3, citing concern for rapidly spreading cellulitis with possible bacteremia requiring IV access, CBC, and blood cultures. AI interprets spreading erythema as an early warning sign of sepsis in a pediatric patient.",
+    "teaching_point": "AI overtriage: Spreading cellulitis does warrant monitoring, but this child is afebrile, hemodynamically normal, and well-appearing — classic ESI 4. ESI 3 would require a high-risk feature such as fever, systemic toxicity, concern for necrotizing fasciitis, or immunocompromise. Marking borders at triage is good practice, but 2cm spread over 8 hours in an afebrile child without systemic signs does not justify IV access or bloodwork. Teaching opportunity: recognize when AI pattern-matches to a dangerous diagnosis (spreading infection = sepsis) without integrating the full clinical picture.",
     "tags": [
       "cellulitis",
       "skin infection",
@@ -928,8 +928,8 @@
     "id": 18,
     "title": "Ear Pain with Low-Grade Fever",
     "esi": 4,
-    "ai_esi": 4,
-    "ai_correct": true,
+    "ai_esi": 3,
+    "ai_correct": false,
     "difficulty": "low",
     "category": "ENT",
     "patient": {
@@ -952,8 +952,8 @@
     "exam": "Alert, well-appearing, mild distress due to pain. Right tympanic membrane erythematous, opaque, and bulging with loss of normal landmarks. No perforation. Light reflex absent. No post-auricular tenderness. Facial nerve intact. Left ear normal. Oropharynx mildly erythematous, no exudates.",
     "pmh": "One prior AOM episode 2 years ago. Not on prophylactic antibiotics. No prior ear surgery. No hearing aids. No recent dental work.",
     "correct_esi_rationale": "ESI 4: Acute otitis media \u2014 bulging TM, opaque, loss of landmarks, with appropriate fever and antecedent URI. One resource needed: physical examination (already being done by clinician) and prescription. No labs, no imaging needed. Low-grade fever in context of AOM is expected and not a reason to escalate.",
-    "ai_rationale": "AI correctly identifies bulging, opaque TM consistent with AOM as ESI 4 \u2014 office-equivalent visit requiring prescription only.",
-    "teaching_point": "AOM with systemic features (fever >39\u00b0C, severe pain, under age 6 months, or bilateral AOM in child <2 years) should be treated with antibiotics. This 11-year-old with moderate AOM can receive observation vs antibiotics per AAP guidelines. No need to escalate triage based on low-grade fever in an otherwise well child with isolated AOM.",
+    "ai_rationale": "AI recommends ESI 3, citing fever (38.0\u00b0C), muffled hearing, and 3-day progression as features concerning for complicated AOM or early mastoiditis requiring imaging (temporal bone CT), IV antibiotics, and otolaryngology consult. AI interprets loss of light reflex and opaque TM as high-risk findings.",
+    "teaching_point": "AI overtriage: Mastoiditis is a genuine AOM complication but requires post-auricular tenderness, swelling, or proptosis of the pinna — none of which are present here. This is straightforward AOM with expected low-grade fever. ESI 3 would require high resource use (CT, IV, consult) which is not indicated without mastoid findings. Teaching opportunity: fever in the context of an obvious focal infection does not automatically escalate ESI. Treat the infection causing the fever, not the number on the thermometer.",
     "tags": [
       "otitis media",
       "ear pain",

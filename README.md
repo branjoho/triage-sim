@@ -61,8 +61,8 @@ Within-subject: each nurse is randomly assigned 10 Arm A cases and 10 Arm B case
 |---|---|---|
 | 1 | 3 | 0 |
 | 2 | 5 | 2 (Cases 4, 7 — undertriage; petechiae/fever, opioid toxidrome) |
-| 3 | 6 | 2 (Cases 9, 13, 14 — undertriage; appendicitis, SVT, croup at rest) |
-| 4 | 4 | 0 |
+| 3 | 6 | 3 (Cases 9, 13, 14 — undertriage; appendicitis, SVT, croup at rest) |
+| 4 | 4 | 2 (Cases 16, 18 — overtriage; cellulitis, AOM) |
 | 5 | 2 | 0 |
 
-AI is intentionally incorrect on 5/20 cases (25%), all undertriage errors, to probe anchoring on unsafe AI recommendations.
+AI is intentionally incorrect on 7/20 cases (35%): 5 undertriage errors to probe anchoring on unsafe AI recommendations, and 2 overtriage errors to probe unnecessary escalation driven by AI pattern-matching.
