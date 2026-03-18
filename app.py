@@ -242,20 +242,39 @@ def admin_required(f):
 
 # ─── Arm sequence generation ───────────────────────────────────────────────────
 
-def generate_arm_sequence(n_cases=20):
-    """Balanced within-subject: exactly half A, half B, shuffled."""
-    half = n_cases // 2
-    seq = ["A"] * half + ["B"] * half
-    if n_cases % 2 == 1:
-        seq.append(random.choice(["A", "B"]))
-    random.shuffle(seq)
-    return seq
+# Stratified counterbalancing groups — balanced by ESI level and AI error count.
+# Group 0: ESI1×2, ESI2×3, ESI3×2, ESI4×2, ESI5×1 | 3 AI errors (cases 4,9,16)
+# Group 1: ESI1×1, ESI2×3, ESI3×3, ESI4×2, ESI5×1 | 4 AI errors (cases 7,13,14,18)
+_CB_GROUP_0 = [1, 2,  4, 5, 10,  9, 11,  16, 17,  19]
+_CB_GROUP_1 = [3,     6, 7,  8, 12, 13, 14,  15, 18,  20]
 
-def generate_case_sequence(cases):
-    """Randomize case presentation order per nurse so case N-th position differs across participants."""
-    ids = [c["id"] for c in cases]
-    random.shuffle(ids)
-    return ids
+def generate_counterbalanced_sequences(nurse_number):
+    """
+    Stratified counterbalancing:
+    - Cases pre-split into two ESI-matched groups (_CB_GROUP_0, _CB_GROUP_1).
+    - Even nurses: Group 0 → Arm A, Group 1 → Arm B.
+      Odd nurses:  Group 0 → Arm B, Group 1 → Arm A.
+    - Within-group rotation (every 2 nurses) counterbalances case positions.
+    - Interleave pattern shifts each nurse so A/B don't always occupy the same serial positions.
+    """
+    if nurse_number % 2 == 0:
+        a_cases, b_cases = _CB_GROUP_0[:], _CB_GROUP_1[:]
+    else:
+        a_cases, b_cases = _CB_GROUP_1[:], _CB_GROUP_0[:]
+
+    rotation = (nurse_number // 2) % 10
+    a_cases = a_cases[rotation:] + a_cases[:rotation]
+    b_cases = b_cases[rotation:] + b_cases[:rotation]
+
+    case_seq, arm_seq = [], []
+    for i in range(10):
+        if nurse_number % 2 == 0:
+            case_seq += [a_cases[i], b_cases[i]]
+            arm_seq  += ["A", "B"]
+        else:
+            case_seq += [b_cases[i], a_cases[i]]
+            arm_seq  += ["B", "A"]
+    return case_seq, arm_seq
 
 # ─── Routes: Auth ──────────────────────────────────────────────────────────────
 
@@ -282,8 +301,8 @@ def register():
     if existing:
         return jsonify({"error": "Username already taken"}), 409
 
-    arm_seq  = generate_arm_sequence(len(CASES))
-    case_seq = generate_case_sequence(CASES)
+    nurse_number = db.execute("SELECT COUNT(*) as n FROM nurses").fetchone()["n"]
+    case_seq, arm_seq = generate_counterbalanced_sequences(nurse_number)
     db.execute(
         "INSERT INTO nurses (username, password_hash, arm_sequence, case_sequence, years_experience, role, work_setting) "
         "VALUES (?,?,?,?,?,?,?)",
@@ -853,6 +872,19 @@ def admin_nurses():
         "SELECT id, username, years_experience, role, work_setting, created_at FROM nurses ORDER BY created_at DESC"
     ).fetchall()
     return jsonify([dict(n) for n in nurses])
+
+@app.route("/api/admin/nurse/<int:nurse_id>/reset", methods=["DELETE"])
+@admin_required
+def admin_reset_nurse(nurse_id):
+    """Delete all responses and sessions for a nurse so their data is excluded from analysis."""
+    db = get_db()
+    if not db.execute("SELECT id FROM nurses WHERE id=?", (nurse_id,)).fetchone():
+        return jsonify({"error": "Nurse not found"}), 404
+    db.execute("DELETE FROM responses WHERE nurse_id=?", (nurse_id,))
+    db.execute("DELETE FROM chat_messages WHERE nurse_id=?", (nurse_id,))
+    db.execute("DELETE FROM sim_sessions WHERE nurse_id=?", (nurse_id,))
+    db.commit()
+    return jsonify({"ok": True})
 
 @app.route("/api/admin/export/responses")
 @admin_required

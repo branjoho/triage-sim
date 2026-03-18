@@ -1458,7 +1458,7 @@ async function loadAdminDashboard() {
 
   document.getElementById('admin-stats').innerHTML = statsHtml;
 
-  let tableHtml = '<thead><tr><th>Username</th><th>Role</th><th>Experience</th><th>Setting</th><th>Created</th></tr></thead><tbody>';
+  let tableHtml = '<thead><tr><th>Username</th><th>Role</th><th>Experience</th><th>Setting</th><th>Created</th><th></th></tr></thead><tbody>';
   nurses.forEach(n => {
     tableHtml += `<tr>
       <td>${escapeHtml(n.username)}</td>
@@ -1466,12 +1466,25 @@ async function loadAdminDashboard() {
       <td>${n.years_experience || '—'}</td>
       <td>${escapeHtml(n.work_setting || '—')}</td>
       <td>${new Date(n.created_at).toLocaleDateString()}</td>
+      <td><button class="btn btn-secondary" style="padding:2px 10px; font-size:0.8em;"
+          onclick="resetNurse(${n.id}, '${escapeHtml(n.username)}')">Reset</button></td>
     </tr>`;
   });
   tableHtml += '</tbody>';
   document.getElementById('nurses-table').innerHTML = tableHtml;
 
   showPage('page-admin');
+}
+
+async function resetNurse(nurseId, username) {
+  if (!confirm(`Delete all responses and sessions for "${username}"? This cannot be undone.`)) return;
+  const data = await api('DELETE', `/api/admin/nurse/${nurseId}/reset`, null);
+  if (data.ok) {
+    alert(`Data for "${username}" cleared.`);
+    loadAdminDashboard();
+  } else {
+    alert(data.error || 'Error resetting nurse data.');
+  }
 }
 
 function exportResponses() {
