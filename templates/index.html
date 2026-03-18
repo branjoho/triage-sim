@@ -743,7 +743,10 @@
           <option>Pain complaint / musculoskeletal</option>
           <option>Behavioral / psychiatric</option>
           <option>Other / low-acuity</option>
+          <option value="__other__">Other (specify)</option>
         </select>
+        <input type="text" id="hypothesis-other-input" placeholder="Describe your clinical concern..."
+               style="display:none; margin-top:8px; width:100%; padding:6px 10px; border:1px solid #444; border-radius:6px; background:#1e1e2e; color:#cdd6f4;">
       </div>
 
       <!-- NCJMM Step 2: Analyze Cues -->
@@ -767,6 +770,16 @@
         <button class="btn btn-primary" id="btn-submit-initial" onclick="submitInitial()">Submit Triage</button>
       </div>
 
+    </div>
+
+    <!-- AI Influence Question (both arms, shown after AI appears) -->
+    <div id="ai-influence-panel" class="esi-panel" style="display:none;">
+      <h5 style="margin-bottom:12px;">Did the AI recommendation change how you were thinking about this case?</h5>
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-secondary" style="flex:1;" onclick="recordAiInfluence('yes')">Yes</button>
+        <button class="btn btn-secondary" style="flex:1;" onclick="recordAiInfluence('partially')">Partially</button>
+        <button class="btn btn-secondary" style="flex:1;" onclick="recordAiInfluence('no')">No</button>
+      </div>
     </div>
 
     <!-- Revision Panel (Arm A only, initially hidden) -->
@@ -1059,7 +1072,10 @@ function initChat(caseData) {
   document.getElementById('ready-triage-btn').style.display = 'block';
   document.getElementById('esi-selection-panel').style.display = 'none';
   document.getElementById('revision-panel').style.display = 'none';
+  document.getElementById('ai-influence-panel').style.display = 'none';
   document.getElementById('btn-next-case').style.display = 'none';
+  S.aiInfluence = null;
+  S.pendingFeedbackData = null;
 
   // Focus input
   document.getElementById('message-input').focus();
@@ -1237,10 +1253,18 @@ function selectESI(n) {
 
 async function submitInitial() {
   // Validate Step 1
-  const hypothesis = document.getElementById('hypothesis-select').value;
+  let hypothesis = document.getElementById('hypothesis-select').value;
   if (!hypothesis) {
     alert('Please complete Step 1 — select a working clinical concern.');
     return;
+  }
+  if (hypothesis === '__other__') {
+    const otherText = document.getElementById('hypothesis-other-input').value.trim();
+    if (!otherText) {
+      alert('Please describe your clinical concern in the text field.');
+      return;
+    }
+    hypothesis = 'Other: ' + otherText;
   }
 
   // Validate Step 2
@@ -1276,14 +1300,13 @@ async function submitInitial() {
   document.getElementById('esi-selection-panel').style.display = 'none';
 
   if (data.phase === 'revision') {
-    // Arm A: show revision panel
+    // Arm A: AI revealed — show influence question, then revision panel
     S.aiRevealTime = Date.now();
     S.phase = 'revision';
 
-    // Append AI message to chat
     appendMessage('ai', `AI recommends ESI ${data.ai_esi}. You chose ESI ${data.initial_esi}. Would you like to revise?`, null);
 
-    // Show revision panel
+    // Prepare revision panel (hidden until influence answered)
     document.getElementById('initial-esi-display').textContent = data.initial_esi;
     document.getElementById('initial-esi-display').className = `esi-badge esi${data.initial_esi}`;
     document.getElementById('ai-esi-display').textContent = data.ai_esi;
@@ -1301,10 +1324,12 @@ async function submitInitial() {
     }
     selectRevisionESI(data.initial_esi);
 
-    document.getElementById('revision-panel').style.display = 'block';
+    S.pendingFeedbackData = null;
+    document.getElementById('ai-influence-panel').style.display = 'block';
   } else {
-    // Arm B: go straight to feedback
-    renderFeedback(data);
+    // Arm B: triage submitted after seeing AI — show influence question before feedback
+    S.pendingFeedbackData = data;
+    document.getElementById('ai-influence-panel').style.display = 'block';
   }
 }
 
@@ -1313,6 +1338,23 @@ function selectRevisionESI(n) {
   document.querySelectorAll('#revision-esi-grid .esi-btn').forEach(b => {
     b.classList.toggle('selected', parseInt(b.dataset.esi) === n);
   });
+}
+
+async function recordAiInfluence(value) {
+  S.aiInfluence = value;
+  document.getElementById('ai-influence-panel').style.display = 'none';
+  await api('POST', `/api/session/${S.sessionId}/ai_influence`, {
+    case_id: S.currentCase.case_id,
+    ai_influence: value
+  });
+  if (S.pendingFeedbackData) {
+    // Arm B: proceed to feedback
+    renderFeedback(S.pendingFeedbackData);
+    S.pendingFeedbackData = null;
+  } else {
+    // Arm A: show revision panel
+    document.getElementById('revision-panel').style.display = 'block';
+  }
 }
 
 function confirmOriginal() {
@@ -1387,10 +1429,34 @@ async function loadAdminDashboard() {
   const nurses = await api('GET', '/api/admin/nurses', null);
 
   let statsHtml = '';
-  statsHtml += `<div class="summary-stat"><strong>Nurses:</strong> ${stats.n_nurses}</div>`;
+  statsHtml += `<div class="summary-stat"><strong>Nurses registered:</strong> ${stats.n_nurses}</div>`;
   statsHtml += `<div class="summary-stat"><strong>Sessions:</strong> ${stats.n_sessions}</div>`;
-  statsHtml += `<div class="summary-stat"><strong>Completed:</strong> ${stats.n_completed_sessions}</div>`;
   statsHtml += `<div class="summary-stat"><strong>Total Responses:</strong> ${stats.n_responses}</div>`;
+
+  // Completion funnel
+  statsHtml += `<h5 style="margin-top:20px; margin-bottom:10px;">Completion Funnel</h5>`;
+  statsHtml += `<table style="width:100%; border-collapse:collapse; margin-bottom:16px;">
+    <thead><tr style="text-align:left; border-bottom:1px solid #444;">
+      <th style="padding:6px 12px;">Stage</th><th style="padding:6px 12px;">n</th>
+    </tr></thead><tbody>
+    <tr><td style="padding:6px 12px;">Started (≥1 case)</td><td style="padding:6px 12px;">${stats.n_started}</td></tr>
+    <tr><td style="padding:6px 12px;">Reached halfway (≥10 cases)</td><td style="padding:6px 12px;">${stats.n_reached_10}</td></tr>
+    <tr><td style="padding:6px 12px;">Completed all 20 cases</td><td style="padding:6px 12px;">${stats.n_completed_all}</td></tr>
+  </tbody></table>`;
+
+  // Per-case completion
+  if (stats.per_case_completion && stats.per_case_completion.length > 0) {
+    statsHtml += `<h5 style="margin-top:20px; margin-bottom:10px;">Per-Case Completion</h5>`;
+    statsHtml += `<table style="width:100%; border-collapse:collapse;">
+      <thead><tr style="text-align:left; border-bottom:1px solid #444;">
+        <th style="padding:4px 12px;">Case #</th><th style="padding:4px 12px;">Responses</th>
+      </tr></thead><tbody>`;
+    stats.per_case_completion.forEach(c => {
+      statsHtml += `<tr><td style="padding:4px 12px;">${c.case_order}</td><td style="padding:4px 12px;">${c.n}</td></tr>`;
+    });
+    statsHtml += `</tbody></table>`;
+  }
+
   document.getElementById('admin-stats').innerHTML = statsHtml;
 
   let tableHtml = '<thead><tr><th>Username</th><th>Role</th><th>Experience</th><th>Setting</th><th>Created</th></tr></thead><tbody>';
@@ -1450,6 +1516,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('revision-confidence-slider')?.addEventListener('input', (e) => {
     document.getElementById('rev-conf-display').textContent = e.target.value + ' / 5';
+  });
+
+  document.getElementById('hypothesis-select')?.addEventListener('change', (e) => {
+    const otherInput = document.getElementById('hypothesis-other-input');
+    otherInput.style.display = e.target.value === '__other__' ? 'block' : 'none';
   });
 });
 </script>

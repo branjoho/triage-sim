@@ -144,6 +144,7 @@ def init_db():
         ("responses", "first_intent",           "TEXT"),
         ("responses", "working_hypothesis",     "TEXT"),
         ("responses", "cue_salience",           "TEXT"),
+        ("responses", "ai_influence",           "TEXT"),
     ]
     for table, col, typedef in new_columns:
         try:
@@ -740,6 +741,23 @@ def submit_revision(session_id):
         "teaching_point": case["teaching_point"]
     })
 
+@app.route("/api/session/<int:session_id>/ai_influence", methods=["POST"])
+@login_required
+def record_ai_influence(session_id):
+    """Record whether the AI recommendation changed the nurse's thinking (both arms)."""
+    db   = get_db()
+    data = request.get_json()
+    case_id     = data.get("case_id")
+    ai_influence = data.get("ai_influence")
+    if not case_id or ai_influence not in ("yes", "partially", "no"):
+        return jsonify({"error": "Invalid payload"}), 400
+    db.execute(
+        "UPDATE responses SET ai_influence=? WHERE session_id=? AND case_id=? AND nurse_id=?",
+        (ai_influence, session_id, case_id, session["nurse_id"])
+    )
+    db.commit()
+    return jsonify({"ok": True})
+
 # ─── Routes: Progress ──────────────────────────────────────────────────────────
 
 @app.route("/api/session/<int:session_id>/progress")
@@ -895,7 +913,7 @@ def export_responses():
         "hpi_reveal_ms","exam_reveal_ms","pmh_reveal_ms",
         "info_seeking_log","free_text_reasoning",
         "n_chat_messages","unique_intents_asked","first_intent",
-        "working_hypothesis","cue_salience",
+        "working_hypothesis","cue_salience","ai_influence",
         "timestamp"
     ])
     writer.writeheader()
@@ -1003,15 +1021,37 @@ def export_summary():
 @admin_required
 def admin_stats():
     db = get_db()
-    n_nurses   = db.execute("SELECT COUNT(*) as n FROM nurses").fetchone()["n"]
-    n_responses= db.execute("SELECT COUNT(*) as n FROM responses").fetchone()["n"]
-    n_sessions = db.execute("SELECT COUNT(*) as n FROM sim_sessions").fetchone()["n"]
-    n_complete = db.execute("SELECT COUNT(*) as n FROM sim_sessions WHERE completed_at IS NOT NULL").fetchone()["n"]
+    n_nurses    = db.execute("SELECT COUNT(*) as n FROM nurses").fetchone()["n"]
+    n_responses = db.execute("SELECT COUNT(*) as n FROM responses").fetchone()["n"]
+    n_sessions  = db.execute("SELECT COUNT(*) as n FROM sim_sessions").fetchone()["n"]
+    n_complete  = db.execute("SELECT COUNT(*) as n FROM sim_sessions WHERE completed_at IS NOT NULL").fetchone()["n"]
+
+    # Completion funnel: nurses by how many cases they completed
+    n_started   = db.execute(
+        "SELECT COUNT(DISTINCT nurse_id) as n FROM responses"
+    ).fetchone()["n"]
+    n_reached_10 = db.execute(
+        "SELECT COUNT(*) as n FROM (SELECT nurse_id FROM responses GROUP BY nurse_id HAVING COUNT(*) >= 10)"
+    ).fetchone()["n"]
+    n_completed_all = db.execute(
+        "SELECT COUNT(*) as n FROM (SELECT nurse_id FROM responses GROUP BY nurse_id HAVING COUNT(*) >= 20)"
+    ).fetchone()["n"]
+
+    # Per-case completion: how many responses exist for each case_order position
+    per_case_rows = db.execute(
+        "SELECT case_order, COUNT(*) as n FROM responses WHERE case_order IS NOT NULL GROUP BY case_order ORDER BY case_order"
+    ).fetchall()
+    per_case = [{"case_order": r["case_order"], "n": r["n"]} for r in per_case_rows]
+
     return jsonify({
         "n_nurses": n_nurses,
         "n_responses": n_responses,
         "n_sessions": n_sessions,
-        "n_completed_sessions": n_complete
+        "n_completed_sessions": n_complete,
+        "n_started": n_started,
+        "n_reached_10": n_reached_10,
+        "n_completed_all": n_completed_all,
+        "per_case_completion": per_case
     })
 
 # ─── Boot ──────────────────────────────────────────────────────────────────────
