@@ -42,3 +42,15 @@ def test_pmh_still_works():
 
 def test_unknown_still_works():
     assert detect_intent("xyzzy frobble wumble") == "unknown"
+
+def test_hpi_what_brings_you_in():
+    assert detect_intent("What brings you in today?") == "hpi"
+
+def test_hpi_why_are_you_here():
+    assert detect_intent("Why are you here?") == "hpi"
+
+def test_hpi_whats_been_going_on():
+    assert detect_intent("What has been going on?") == "hpi"
+
+def test_hpi_what_symptoms():
+    assert detect_intent("What symptoms are you having?") == "hpi"
