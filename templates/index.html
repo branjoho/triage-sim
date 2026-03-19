@@ -120,11 +120,6 @@
     text-align: center;
   }
 
-  .vital-item.danger {
-    background: #ffcccc;
-    color: #c0392b;
-    font-weight: bold;
-  }
 
   .vital-item.abnormal {
     background: #ffe6cc;
@@ -1097,10 +1092,6 @@ function renderVitals(vitals) {
     if (v.value !== null && v.value !== undefined) {
       const item = document.createElement('div');
       item.className = 'vital-item';
-      // Simple abnormality detection (would be more sophisticated in production)
-      if ((v.label === 'HR' && v.value < 60) || (v.label === 'RR' && v.value < 10)) {
-        item.classList.add('danger');
-      }
       item.innerHTML = `<span class="vital-label">${v.label}</span><span class="vital-value">${v.value}${v.unit}</span>`;
       vDisplay.appendChild(item);
     }
